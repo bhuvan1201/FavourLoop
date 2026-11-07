@@ -1,0 +1,9 @@
+.env*
+.data/
+.logs/
+.next*
+node_modules/
+test-results/
+playwright-report/
+.vscode/
+AGENTS.md

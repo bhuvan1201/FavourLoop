@@ -20,20 +20,20 @@ after(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 let number = 0;
-function fixture() {
+async function fixture() {
   const prefix = `case-${++number}`;
   const classroom = `${prefix}-class`,
     requester = `${prefix}-requester`,
     helper = `${prefix}-helper`,
     offerId = `${prefix}-offer`;
-  run(
+  await run(
     "INSERT INTO classrooms VALUES(?,?,?)",
     classroom,
     "Synthetic class",
     "Synthetic school",
   );
   for (const id of [requester, helper])
-    run(
+    await run(
       "INSERT INTO users VALUES(?,?,?,?,?,?,?,?)",
       id,
       `${id}@example.test`,
@@ -54,7 +54,7 @@ function fixture() {
     status: "open",
     createdAt: new Date().toISOString(),
   };
-  run(
+  await run(
     "INSERT INTO needs VALUES(?,?,?,?,?,?,?,?)",
     need.id,
     requester,
@@ -65,7 +65,7 @@ function fixture() {
     need.status,
     need.createdAt,
   );
-  run(
+  await run(
     "INSERT INTO offers VALUES(?,?,?,?,?,?,?)",
     offerId,
     helper,
@@ -77,8 +77,8 @@ function fixture() {
   );
   return { need, helper, offerId, classroom, requester };
 }
-function suggestion(need: Need): RecommendationResult {
-  const candidate = matchingContext(need).eligible[0];
+async function suggestion(need: Need): Promise<RecommendationResult> {
+  const candidate = (await matchingContext(need)).eligible[0];
   assert.ok(candidate);
   return {
     engine: "openai",
@@ -92,32 +92,32 @@ function suggestion(need: Need): RecommendationResult {
     ],
   };
 }
-
 test("semantic recommendations authorize invitations for 15 minutes, with no keyword-only bypass", async () => {
-  const { need, offerId } = fixture();
-  assert.equal(matchingContext(need).local.length, 0);
-  assert.equal(invitableMatch(need, offerId), undefined);
-  const result = await findMatchesFor(need, async () => suggestion(need));
+  const { need, offerId } = await fixture();
+  assert.equal((await matchingContext(need)).local.length, 0);
+  assert.equal(await invitableMatch(need, offerId), undefined);
+  const result = await findMatchesFor(need, async () => await suggestion(need));
   assert.equal(result.matches.length, 1);
-  const stored = one<{ expiresAt: string }>(
+  const stored = (await one<{
+    expiresAt: string;
+  }>(
     "SELECT expiresAt FROM recommended_matches WHERE needId=? AND offerId=?",
     need.id,
     offerId,
-  )!;
+  ))!;
   const remaining = Date.parse(stored.expiresAt) - Date.now();
   assert.ok(remaining > 14 * 60000 && remaining <= 15 * 60000);
-  assert.ok(invitableMatch(need, offerId));
-  run(
+  assert.ok(await invitableMatch(need, offerId));
+  await run(
     "UPDATE recommended_matches SET expiresAt=? WHERE needId=?",
     new Date(Date.now() - 1000).toISOString(),
     need.id,
   );
-  assert.equal(invitableMatch(need, offerId), undefined);
+  assert.equal(await invitableMatch(need, offerId), undefined);
 });
-
 test("rechecks availability after the model responds before returning or caching a match", async () => {
-  const { need, helper } = fixture();
-  const modelResult = suggestion(need);
+  const { need, helper } = await fixture();
+  const modelResult = await suggestion(need);
   let release!: () => void, entered!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -131,42 +131,40 @@ test("rechecks availability after the model responds before returning or caching
     return modelResult;
   });
   await started;
-  run("UPDATE users SET available=0 WHERE id=?", helper);
+  await run("UPDATE users SET available=0 WHERE id=?", helper);
   release();
   const result = await pending;
   assert.equal(result.matches.length, 0);
   assert.match(result.notice, /changed/);
   assert.equal(
-    one("SELECT * FROM recommended_matches WHERE needId=?", need.id),
+    await one("SELECT * FROM recommended_matches WHERE needId=?", need.id),
     undefined,
   );
 });
-
 test("closed requests and withdrawn offers invalidate in-flight recommendations", async () => {
   for (const change of ["request", "offer"]) {
-    const { need, offerId } = fixture();
-    const modelResult = suggestion(need);
+    const { need, offerId } = await fixture();
+    const modelResult = await suggestion(need);
     const result = await findMatchesFor(need, async () => {
       if (change === "request")
-        run("UPDATE needs SET status='cancelled' WHERE id=?", need.id);
-      else run("UPDATE offers SET active=0 WHERE id=?", offerId);
+        await run("UPDATE needs SET status='cancelled' WHERE id=?", need.id);
+      else await run("UPDATE offers SET active=0 WHERE id=?", offerId);
       return modelResult;
     });
     assert.equal(result.matches.length, 0);
     assert.equal(
-      one("SELECT * FROM recommended_matches WHERE needId=?", need.id),
+      await one("SELECT * FROM recommended_matches WHERE needId=?", need.id),
       undefined,
     );
   }
 });
-
 test("a cached model recommendation never overrides current availability, consent or session capacity", async () => {
-  const { need, helper, offerId, classroom, requester } = fixture();
-  await findMatchesFor(need, async () => suggestion(need));
-  run("UPDATE users SET available=0 WHERE id=?", helper);
-  assert.equal(invitableMatch(need, offerId), undefined);
-  run("UPDATE users SET available=1 WHERE id=?", helper);
-  run(
+  const { need, helper, offerId, classroom, requester } = await fixture();
+  await findMatchesFor(need, async () => await suggestion(need));
+  await run("UPDATE users SET available=0 WHERE id=?", helper);
+  assert.equal(await invitableMatch(need, offerId), undefined);
+  await run("UPDATE users SET available=1 WHERE id=?", helper);
+  await run(
     "INSERT INTO proposals VALUES(?,?,?,?,?,?)",
     `declined-${need.id}`,
     need.id,
@@ -175,9 +173,9 @@ test("a cached model recommendation never overrides current availability, consen
     "declined",
     need.createdAt,
   );
-  assert.equal(invitableMatch(need, offerId), undefined);
-  run("DELETE FROM proposals WHERE needId=?", need.id);
-  run(
+  assert.equal(await invitableMatch(need, offerId), undefined);
+  await run("DELETE FROM proposals WHERE needId=?", need.id);
+  await run(
     "INSERT INTO help_sessions VALUES(?,?,?,?,?,?,?,?,?)",
     `session-${need.id}`,
     need.id,
@@ -189,13 +187,12 @@ test("a cached model recommendation never overrides current availability, consen
     need.createdAt,
     null,
   );
-  assert.equal(invitableMatch(need, offerId), undefined);
+  assert.equal(await invitableMatch(need, offerId), undefined);
 });
-
 test("classroom and student-role restrictions apply before any model receives candidates", async () => {
-  const { need, classroom, offerId } = fixture();
+  const { need, classroom, offerId } = await fixture();
   const other = `${classroom}-other`;
-  run(
+  await run(
     "INSERT INTO classrooms VALUES(?,?,?)",
     other,
     "Other class",
@@ -205,7 +202,7 @@ test("classroom and student-role restrictions apply before any model receives ca
     [`${classroom}-outsider`, "student", other],
     [`${classroom}-teacher`, "teacher", classroom],
   ]) {
-    run(
+    await run(
       "INSERT INTO users VALUES(?,?,?,?,?,?,?,?)",
       id,
       `${id}@example.test`,
@@ -216,7 +213,7 @@ test("classroom and student-role restrictions apply before any model receives ca
       "#fff",
       1,
     );
-    run(
+    await run(
       "INSERT INTO offers VALUES(?,?,?,?,?,?,?)",
       `${id}-offer`,
       id,
@@ -232,6 +229,6 @@ test("classroom and student-role restrictions apply before any model receives ca
       eligible.map((match) => match.offer.id),
       [offerId],
     );
-    return suggestion(need);
+    return await suggestion(need);
   });
 });

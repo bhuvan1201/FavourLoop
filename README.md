@@ -48,7 +48,7 @@ flowchart TD
     API --> Interpret[OpenAI interpretation / basic recognition without a key]
     Interpret --> Draft[Private learning draft]
     Draft --> Review[Student reviews and confirms]
-    Review --> Records[(Confirmed classroom records in SQLite)]
+    Review --> Records[(Confirmed classroom records in SQLite or Postgres)]
     Records --> Eligibility[Check classroom, willingness, availability and capacity]
     Eligibility --> AI[OpenAI compares eligible offers]
     Eligibility -. local fallback .-> Local[Basic topic matching]
@@ -145,7 +145,7 @@ The recorded **November 7, 2026** validation used isolated local databases and s
 
 | Recorded result                 | Outcome                                                                            |
 | ------------------------------- | ---------------------------------------------------------------------------------- |
-| Unit tests                      | **21 passed**                                                                      |
+| Unit tests                      | **23 passed**                                                                      |
 | Browser tests                   | **4 passed**, with a trace for each                                                |
 | TypeScript and production build | Passed                                                                             |
 | Live OpenAI integration         | Passed: interpretation, semantic matching, scope exclusions, and invitation checks |
@@ -173,7 +173,7 @@ The recorded **November 7, 2026** validation used isolated local databases and s
 | Backend              | Next.js route handlers, Node.js 24               | Authentication, classroom access, matching, invitations, and signaling |
 | AI                   | OpenAI Responses API with structured output      | Draft learning records and compare eligible offers                     |
 | Validation           | Zod 4                                            | Validate request bodies and model output                               |
-| Persistence          | SQLite through `node:sqlite`                     | Users, classrooms, drafts, learning records, invitations, and sessions |
+| Persistence          | SQLite locally; Neon Postgres on Vercel          | Users, classrooms, drafts, learning records, invitations, and sessions |
 | Voice input          | Browser SpeechRecognition and speech synthesis   | Speech-to-text capture and read-aloud support                          |
 | Live audio           | WebRTC with STUN                                 | Peer-to-peer student calls                                             |
 | Browser verification | Playwright with Google Chrome                    | Workflow, role boundaries, mobile layout, and voice-connection checks  |
@@ -197,7 +197,7 @@ FavourLoop/
 │   ├── voice-panel.tsx         # Speech capture and draft review
 │   └── session-room.tsx        # Voice call, notes, and outcomes
 ├── lib/
-│   ├── db.ts                   # SQLite schema and synthetic classroom seed
+│   ├── db.ts                   # Async local/hosted database adapter
 │   ├── interpret.ts            # AI interpretation and basic recognition
 │   ├── matching.ts             # Eligibility and local topic matching
 │   ├── recommend.ts            # Bounded OpenAI recommendations
@@ -227,7 +227,7 @@ Application source stays in this project. Private configuration, dependencies, g
 
 ### Run the classroom app
 
-Use **Node.js 24 LTS** and npm. The minimum supported Node version is 22.13 because the app uses built-in SQLite. Browser verification uses an installed copy of Google Chrome.
+Use **Node.js 24 LTS** and npm. The deployment and local runtime use Node.js 24, including built-in SQLite for local development. Browser verification uses an installed copy of Google Chrome.
 
 From the FavourLoop project folder:
 
@@ -244,6 +244,8 @@ Open **http://127.0.0.1:3000**. Without a key, basic topic recognition and local
 ### Try the demo
 
 Open **Alex · student**, **Maya · student**, and **Ms. Rivera · teacher** in separate browser profiles or contexts. Ordinary tabs share login cookies.
+
+Sam and Jordan also have demo sign-in buttons on the homepage. Seeded demo accounts use these buttons, not email/password credentials; accounts created through signup use the password you chose.
 
 Alex asks about quadratic equations; Maya has volunteered to help. Find Maya, send an invitation, accept it from Maya's account, and open the session in both student accounts. Acknowledge the teacher-visibility notice before joining. Headphones help prevent feedback when testing two microphones. The teacher can observe published activity and shared notes or available transcripts.
 
@@ -313,6 +315,12 @@ Set `FAVOURLOOP_LOCAL_CACHE=false` to disable automatic build-cache preparation.
 If Documents is synced with iCloud, choose **Keep Downloaded** for the FavourLoop folder so source files and local data remain available. See [Apple's instructions](https://support.apple.com/guide/mac-help/mchl1a02d711/mac).
 
 </details>
+
+### Vercel hosting
+
+Live demo: [favourloop.vercel.app](https://favourloop.vercel.app).
+
+See [Deployment](docs/DEPLOYMENT.md) for the hosted database, configuration, and verification. Set `DATABASE_URL` to use Postgres; leave it unset for local SQLite.
 
 ## API Reference
 
@@ -398,7 +406,7 @@ These are public invitations for fictional classroom demonstrations, not product
 
 ## Current Limits
 
-- This is a local classroom prototype. Email verification, account recovery, roster administration, school SSO, production invitation rotation, moderation services, and retention/deletion policies remain future work.
+- This is a classroom demo with local SQLite and hosted Postgres support. Email verification, account recovery, roster administration, school SSO, production invitation rotation, moderation services, and retention/deletion policies remain future work.
 - Browser speech recognition depends on microphone permission, browser support, network access, and the speech service. It may process audio externally. Real-voice accuracy and speaker identity have not been verified; text entry and written notes remain available.
 - Reliable calls across restricted networks need TURN infrastructure, and microphone access outside localhost needs HTTPS. The current peer-to-peer call shutdown relies on cooperating clients; centrally enforced media revocation needs managed infrastructure.
 - AI matching considers at most 12 eligible offers per lookup and provides suggestions for students to review. It does not measure ability or guarantee a useful session.

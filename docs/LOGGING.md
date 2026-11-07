@@ -17,7 +17,7 @@ Read `X-FavourLoop-Trace-Id` in the browser’s Network response headers, then f
 
 Runtime diagnostics use an allowlist of metadata fields. They do not store API keys, authentication headers, account names/emails, raw learning text, model response bodies, call audio or transcripts. The command runner redacts OpenAI key patterns and bearer tokens. `.logs/` is excluded from Git and its top-level directory is private on this machine.
 
-Browser trace files contain DOM and network evidence from the isolated synthetic test accounts, including their fictional learning content. The live-test result payload is also explicitly marked synthetic. These are local development artifacts; no logs or traces are uploaded by this implementation.
+Browser trace files contain DOM and network evidence from the isolated synthetic test accounts, including their fictional learning content. The live-test result payload is also explicitly marked synthetic. These remain local development artifacts. When deployed on Vercel (`VERCEL=1`), runtime diagnostics write the same redacted JSON metadata to standard output for Vercel Runtime Logs instead of a local file. Search those logs by `traceId`; retention depends on the hosting plan.
 
 ## Run with preserved output
 

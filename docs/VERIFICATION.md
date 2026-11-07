@@ -39,9 +39,21 @@ Browser checks cover signup, confirmation and persistence, classroom/role bounda
 
 The API-key scan covered the saved artifacts and decompressed trace contents; it checked for the configured key without printing its value. Runtime logs are metadata-only. Browser trace content comes from synthetic test accounts. Both owned test servers were stopped after verification, and all run artifacts were retained.
 
+## Vercel deployment verification — November 7, 2026
+
+- Live demo: https://favourloop.vercel.app
+- 23 unit tests passed after the async database migration.
+- Production build and final standalone TypeScript check passed.
+- Hosted Postgres initialization, rollback, camel-case row fields, and six concurrent transaction updates passed.
+- Four browser tests passed against Neon before deployment.
+- Five browser tests passed on the final Vercel deployment: pre-hydration form safeguards; signup, password login and persistent profile; teacher/classroom restrictions; real WebRTC with synthetic media, notes and outcomes; mobile layout.
+- Live runtime traces confirmed successful OpenAI calls. Deployment and runtime logs are saved under `.logs/runs/` and indexed locally.
+- The first live run found signup could submit before hydration. Forms now use POST and remain disabled until interactive; the final live suite includes a regression check.
+- Temporary verification accounts were cleaned up; the fictional demo classroom remains available.
+
 ## Remaining limits
 
 - Real-microphone quality and browser speech-recognition accuracy still need a manual check. Written notes remain available when browser transcription is unavailable.
 - Matching considers up to 12 eligible offers per lookup. Its semantic judgments are suggestions for students to review; it does not measure ability or guarantee a successful session.
 - Reliable calls across restricted networks need TURN infrastructure, and non-localhost microphone access needs HTTPS.
-- This is a local classroom demo. School enrollment, account recovery, retention and production operations remain later work.
+- This is a classroom demo with local and hosted storage. School enrollment, account recovery, retention and production operations remain later work.

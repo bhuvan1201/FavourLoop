@@ -2,21 +2,20 @@ import { all, one, run, now, transaction } from "./db.ts";
 import { eligibleFor, matchesFor } from "./matching.ts";
 import { recommendMatches, type RecommendationResult } from "./recommend.ts";
 import type { Need, Offer, Person, Proposal, Session } from "./types.ts";
-
-export function matchingContext(need: Need) {
-  const offers = all<Offer>(
+export async function matchingContext(need: Need) {
+  const offers = await all<Offer>(
     "SELECT * FROM offers WHERE classroomId=? AND active=1 ORDER BY id",
     need.classroomId,
   );
-  const people = all<Person>(
+  const people = await all<Person>(
     "SELECT id,name,role,color,available FROM users WHERE classroomId=?",
     need.classroomId,
   );
-  const proposals = all<Proposal>(
+  const proposals = await all<Proposal>(
     "SELECT * FROM proposals WHERE needId=?",
     need.id,
   );
-  const sessions = all<Session>(
+  const sessions = await all<Session>(
     "SELECT * FROM help_sessions WHERE status!='ended'",
   );
   return {
@@ -24,15 +23,14 @@ export function matchingContext(need: Need) {
     local: matchesFor(need, offers, people, proposals, sessions),
   };
 }
-
 export async function findMatchesFor(
   need: Need,
   recommend: typeof recommendMatches = recommendMatches,
 ): Promise<RecommendationResult> {
-  const context = matchingContext(need);
+  const context = await matchingContext(need);
   const result = await recommend(need, context.eligible, context.local);
-  return transaction(() => {
-    const currentNeed = one<Need>(
+  return await transaction(async () => {
+    const currentNeed = await one<Need>(
       "SELECT * FROM needs WHERE id=? AND studentId=? AND classroomId=?",
       need.id,
       need.studentId,
@@ -45,7 +43,9 @@ export async function findMatchesFor(
           currentNeed[field as "subject" | "topic" | "detail"] ===
           need[field as "subject" | "topic" | "detail"],
       );
-    const current = sameRequest ? matchingContext(currentNeed!).eligible : [];
+    const current = sameRequest
+      ? (await matchingContext(currentNeed!)).eligible
+      : [];
     const originalById = new Map(
       context.eligible.map((match) => [match.offer.id, match]),
     );
@@ -76,14 +76,14 @@ export async function findMatchesFor(
         return [{ ...match, ...candidate }];
       })
       .slice(0, 3);
-    run(
+    await run(
       "DELETE FROM recommended_matches WHERE needId=? OR expiresAt<=?",
       need.id,
       now(),
     );
     const expiresAt = new Date(Date.now() + 15 * 60000).toISOString();
     for (const match of matches) {
-      run(
+      await run(
         "INSERT INTO recommended_matches(needId,offerId,expiresAt) VALUES(?,?,?)",
         need.id,
         match.offer.id,
@@ -100,9 +100,8 @@ export async function findMatchesFor(
     };
   });
 }
-
-export function invitableMatch(need: Need, offerId: string) {
-  const context = matchingContext(need);
+export async function invitableMatch(need: Need, offerId: string) {
+  const context = await matchingContext(need);
   const candidate = context.eligible.find(
     (match) => match.offer.id === offerId,
   );
@@ -110,7 +109,9 @@ export function invitableMatch(need: Need, offerId: string) {
   const locallySuitable = context.local.some(
     (match) => match.offer.id === offerId,
   );
-  const recommendation = one<{ offerId: string }>(
+  const recommendation = await one<{
+    offerId: string;
+  }>(
     "SELECT offerId FROM recommended_matches WHERE needId=? AND offerId=? AND expiresAt>?",
     need.id,
     offerId,

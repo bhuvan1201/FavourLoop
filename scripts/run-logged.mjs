@@ -16,6 +16,7 @@ mkdirSync(dir, { recursive: true, mode: 0o700 });
 const redact = (value) => {
   let text = String(value)
     .replace(/sk-[A-Za-z0-9_-]{16,}/g, "[REDACTED]")
+    .replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_DATABASE_URL]")
     .replace(/Bearer\s+[A-Za-z0-9._~-]+/gi, "Bearer [REDACTED]");
   if (process.env.OPENAI_API_KEY)
     text = text.split(process.env.OPENAI_API_KEY).join("[REDACTED]");

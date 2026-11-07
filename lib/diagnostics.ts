@@ -34,9 +34,6 @@ export const withTrace = <T>(id: string, fn: () => T): T => context.run(id, fn);
 
 export function recordDiagnostic(event: Diagnostic) {
   try {
-    const dir =
-      process.env.FAVOURLOOP_LOG_DIR || join(process.cwd(), ".logs", "runtime");
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
     const entry = {
       timestamp: new Date().toISOString(),
       traceId: context.getStore() || randomUUID(),
@@ -47,6 +44,13 @@ export function recordDiagnostic(event: Diagnostic) {
       /sk-[A-Za-z0-9_-]{16,}/g,
       "[REDACTED]",
     );
+    if (process.env.VERCEL === "1") {
+      console.log(line);
+      return;
+    }
+    const dir =
+      process.env.FAVOURLOOP_LOG_DIR || join(process.cwd(), ".logs", "runtime");
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
     appendFileSync(join(dir, "events.ndjson"), line + "\n", { mode: 0o600 });
   } catch {
     if (!state.flLogWarning) {

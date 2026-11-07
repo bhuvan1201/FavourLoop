@@ -16,9 +16,11 @@ export function Auth({
   login?: boolean;
 }) {
   const [error, setError] = useState(""),
+    [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false),
     [demo, setDemo] = useState(false);
   useEffect(() => {
+    setReady(true);
     api<{ demo: boolean }>("config")
       .then((v) => setDemo(v.demo))
       .catch(() => {});
@@ -100,7 +102,7 @@ export function Auth({
               ? "Sign in to pick up where you left off."
               : "Create your account with your classroom invitation."}
           </p>
-          <form onSubmit={submit}>
+          <form method="post" onSubmit={submit}>
             {!login && (
               <label className="field">
                 Your name
@@ -162,7 +164,7 @@ export function Auth({
                 {error}
               </p>
             )}
-            <button className="button primary full" disabled={busy}>
+            <button className="button primary full" disabled={busy || !ready}>
               {busy ? <Loader2 className="spin" size={18} /> : null}
               {busy ? "One moment…" : login ? "Sign in" : "Join my classroom"}
               <ArrowRight size={18} />

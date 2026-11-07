@@ -200,6 +200,8 @@ export function Landing() {
               {[
                 ["alex", "Alex · student"],
                 ["maya", "Maya · student"],
+                ["sam", "Sam · student"],
+                ["jordan", "Jordan · student"],
                 ["rivera", "Ms. Rivera · teacher"],
               ].map(([id, label]) => (
                 <button

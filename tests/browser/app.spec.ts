@@ -1,4 +1,19 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+test("account forms cannot submit before JavaScript is ready", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    for (const path of ["/signup/student", "/signup/teacher", "/login"]) {
+      await page.goto(path);
+      await expect(page.locator("form")).toHaveAttribute("method", "post");
+      await expect(page.locator("form button")).toBeDisabled();
+    }
+  } finally {
+    await context.close();
+  }
+});
 async function register(
   api: APIRequestContext,
   role = "student",
@@ -35,6 +50,7 @@ async function draft(
 test("landing, student signup, confirmation and persistent profile", async ({
   page,
 }) => {
+  const email = `avery-${crypto.randomUUID()}@example.test`;
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: /A little help/ }),
@@ -45,9 +61,7 @@ test("landing, student signup, confirmation and persistent profile", async ({
   });
   await page.getByRole("link", { name: "Find your learning circle" }).click();
   await page.getByLabel("Your name").fill("Avery Test");
-  await page
-    .getByLabel("Email", { exact: true })
-    .fill(`avery-${crypto.randomUUID()}@example.test`);
+  await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill("test-password-123");
   await page.getByLabel("Classroom invitation").fill("LOOP10");
   await page.getByRole("button", { name: "Join my classroom" }).click();
@@ -87,6 +101,15 @@ test("landing, student signup, confirmation and persistent profile", async ({
   });
   await page.getByRole("button", { name: "Find a helper" }).click();
   await expect(page.getByRole("dialog")).toContainText("Maya Chen");
+  await page.request.post("/api/auth/logout", { data: {} });
+  await page.goto("/login");
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("test-password-123");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Hey Avery/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Quadratic equations", exact: true }),
+  ).toBeVisible();
 });
 test("role and classroom access are enforced by server", async ({
   browser,
